@@ -1,0 +1,2218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seleksi Paskibraka - Panji-Panji Garuda Indonesia</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* Custom animations */
+    @keyframes gradient-red-white {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.6); }
+    }
+    
+    @keyframes stripe {
+      0% { background-position: 0 0; }
+      100% { background-position: 100px 100px; }
+    }
+    
+    .animate-gradient-red-white {
+      background: linear-gradient(-45deg, #dc2626, #b91c1c, #ffffff, #f5f5f5, #dc2626, #991b1b);
+      background-size: 400% 400%;
+      animation: gradient-red-white 15s ease infinite;
+    }
+    
+    .animate-float {
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    .animate-pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    
+    .animate-stripe {
+      background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(255,255,255,0.1) 10px,
+        rgba(255,255,255,0.1) 20px
+      );
+      background-size: 100px 100px;
+      animation: stripe 10s linear infinite;
+    }
+    
+    .page-transition {
+      animation: fadeIn 0.3s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #dc2626;
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #b91c1c;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- Announcement Banner -->
+  <div id="announcement-banner" class="hidden bg-yellow-500 text-black py-2 px-2 md:px-4">
+    <div class="container mx-auto">
+      <div id="announcement-content" class="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
+        <i class="fa-solid fa-bullhorn w-3 h-3 md:w-4 md:h-4 flex-shrink-0"></i>
+        <span id="announcement-text"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div id="app"></div>
+
+  <script>
+    // State Management
+    let currentPage = 'landing';
+    let currentUser = null;
+    let settings = {
+      site_title: 'Seleksi Paskibraka',
+      site_subtitle: 'Panji-Panji Garuda Indonesia',
+      badge_merah: 'Merah',
+      badge_putih: 'Putih',
+      button_masuk: 'Masuk',
+      button_buat_akun: 'Buat Akun',
+      button_admin: 'Admin Panel',
+      footer_text: '© 2024 Seleksi Paskibraka - Panji-Panji Garuda Indonesia',
+      login_title: 'Login Peserta',
+      login_subtitle: 'Masukkan kredensial akun Anda',
+      register_title: 'Pendaftaran Peserta',
+      register_subtitle: 'Lengkapi data diri Anda untuk mendaftar seleksi Paskibraka',
+      admin_title: 'Admin Panel - Paskibraka',
+      quiz_duration: '30',
+      quiz_passing_score: '70',
+      quiz_title: 'Ujian Seleksi Paskibraka',
+    };
+    let announcements = [];
+    let audioEnabled = false;
+
+    // API Functions
+    async function fetchSettings() {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          settings = { ...settings, ...data };
+        }
+      } catch (e) {
+        console.error('Failed to fetch settings');
+      }
+    }
+
+    async function fetchAnnouncements() {
+      try {
+        const res = await fetch('/api/announcements');
+        if (res.ok) {
+          announcements = await res.json();
+          updateAnnouncementBanner();
+        }
+      } catch (e) {
+        console.error('Failed to fetch announcements');
+      }
+    }
+
+    function updateAnnouncementBanner() {
+      const banner = document.getElementById('announcement-banner');
+      const textEl = document.getElementById('announcement-text');
+      
+      if (announcements.length > 0 && currentPage !== 'admin' && currentPage !== 'admin-login') {
+        const ann = announcements[0];
+        textEl.innerHTML = `<span class="font-semibold truncate">${ann.title}:</span> <span class="truncate">${ann.content}</span>`;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    // Generate Paskibraka Logo
+    function getPaskibrakaLogo(size = 128) {
+      return `<img src="/logo-paskibraka.png" alt="Logo Paskibraka" width="${size}" height="${size}" class="drop-shadow-2xl object-contain" style="width: ${size}px; height: ${size}px;">`;
+    }
+
+    // Generate Indonesia Map SVG - More Detailed
+    function getIndonesiaMap() {
+      return `
+        <svg viewBox="0 0 1000 350" class="w-full max-w-6xl opacity-15" style="filter: drop-shadow(0 0 30px rgba(255,255,255,0.4));">
+          <!-- Sumatera -->
+          <path d="M30,120 Q40,90 60,100 Q75,70 95,85 Q110,65 130,75 Q145,60 165,75 L180,95 Q185,120 175,145 Q160,170 140,175 Q120,185 100,175 Q75,180 55,160 Q35,145 30,120Z M170,95 Q185,90 195,100 Q205,95 210,105 L215,120 Q210,135 195,130 Q180,135 175,145 Q165,140 170,120Z" fill="white"/>
+          <!-- Java -->
+          <path d="M220,180 Q260,165 320,170 Q380,175 440,168 Q480,175 520,170 Q540,178 520,185 Q480,195 420,188 Q360,195 300,188 Q250,195 220,180Z" fill="white"/>
+          <!-- Kalimantan -->
+          <path d="M340,50 Q390,35 440,45 Q490,55 510,85 Q520,120 495,145 Q460,165 410,155 Q360,145 340,110 Q325,75 340,50Z M510,85 Q530,80 545,90 Q555,100 545,115 Q530,125 510,120 Q500,105 510,85Z" fill="white"/>
+          <!-- Sulawesi -->
+          <path d="M560,55 Q585,45 600,55 Q615,45 630,55 L640,75 Q650,65 665,75 Q680,65 695,80 L700,100 Q690,115 675,105 Q660,115 645,105 Q630,120 615,110 Q595,115 580,100 Q565,90 560,55Z M630,55 Q645,50 655,60 Q660,75 650,85 Q635,80 630,70Z M665,75 Q680,85 690,100 Q685,115 670,110 Q660,95 665,75Z" fill="white"/>
+          <!-- Maluku -->
+          <path d="M720,70 Q740,60 755,70 Q765,80 780,70 Q795,80 805,72 L810,85 Q800,98 785,90 Q770,100 755,92 Q735,100 720,88 Q710,78 720,70Z M810,85 Q825,80 835,90 Q840,100 830,108 Q815,105 810,95Z" fill="white"/>
+          <!-- Papua -->
+          <path d="M850,40 Q900,25 950,35 Q980,55 975,85 Q960,110 920,105 Q880,110 855,85 Q840,60 850,40Z M950,35 Q970,30 985,40 Q995,55 985,70 Q970,75 955,65 Q945,50 950,35Z" fill="white"/>
+          <!-- Bali & Nusa Tenggara -->
+          <path d="M545,190 Q565,182 580,188 Q595,195 615,188 Q635,196 655,190 Q675,198 695,192 Q710,200 700,208 Q680,218 655,212 Q630,220 605,213 Q580,220 555,212 Q535,215 545,190Z" fill="white"/>
+          <!-- Smaller islands -->
+          <circle cx="215" cy="165" r="5" fill="white"/>
+          <circle cx="535" cy="175" r="4" fill="white"/>
+          <circle cx="700" cy="65" r="4" fill="white"/>
+          <circle cx="625" cy="130" r="3" fill="white"/>
+        </svg>
+      `;
+    }
+    function navigateTo(page) {
+      currentPage = page;
+      updateAnnouncementBanner();
+      render();
+    }
+
+    // Render Functions
+    function render() {
+      const app = document.getElementById('app');
+      
+      let content = '';
+      switch (currentPage) {
+        case 'landing':
+          content = renderLandingPage();
+          break;
+        case 'login':
+          content = renderLoginPage();
+          break;
+        case 'register':
+          content = renderRegisterPage();
+          break;
+        case 'dashboard':
+          content = renderDashboardPage();
+          break;
+        case 'quiz':
+          content = renderQuizPage();
+          break;
+        case 'admin-login':
+          content = renderAdminLoginPage();
+          break;
+        case 'admin':
+          content = renderAdminPanel();
+          break;
+        default:
+          content = renderLandingPage();
+      }
+      
+      app.innerHTML = `<div class="page-transition">${content}</div>`;
+      attachEventListeners();
+    }
+
+    // Landing Page
+    function renderLandingPage() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-80"></div>
+          <div class="absolute inset-0 animate-stripe opacity-30"></div>
+          
+          <!-- Indonesia Map Background - Full screen -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+            <div class="absolute bottom-0 translate-y-1/3 scale-125">
+              ${getIndonesiaMap()}
+            </div>
+            <div class="absolute top-0 left-0 w-full h-full opacity-10">
+              <div class="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-white/5 blur-3xl"></div>
+              <div class="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full bg-white/5 blur-3xl"></div>
+            </div>
+          </div>
+          
+          <div class="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
+            <div class="mb-8" style="animation: float 3s ease-in-out infinite;">
+              ${getPaskibrakaLogo(128)}
+            </div>
+            
+            <div class="text-center mb-12">
+              <h1 class="text-4xl md:text-6xl font-bold text-white drop-shadow-lg mb-4">${settings.site_title}</h1>
+              <p class="text-xl md:text-2xl text-white/90 font-medium">${settings.site_subtitle}</p>
+              <div class="mt-4 flex items-center justify-center gap-2">
+                <span class="bg-red-600 text-white border border-white/30 text-lg px-4 py-1 rounded-full">${settings.badge_merah}</span>
+                <span class="bg-white text-red-600 border border-red-600 text-lg px-4 py-1 rounded-full">${settings.badge_putih}</span>
+              </div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row gap-4">
+              <button onclick="navigateTo('login')" class="bg-white text-red-600 hover:bg-red-50 font-bold text-xl px-10 py-6 rounded-xl shadow-2xl animate-pulse-glow border-2 border-red-200 flex items-center justify-center gap-3 transition-all">
+                <i class="fa-solid fa-user"></i>
+                ${settings.button_masuk}
+              </button>
+              
+              <button onclick="navigateTo('register')" class="bg-red-600 text-white hover:bg-red-700 font-bold text-xl px-10 py-6 rounded-xl shadow-2xl border-2 border-white/30 flex items-center justify-center gap-3 transition-all">
+                <i class="fa-solid fa-user-plus"></i>
+                ${settings.button_buat_akun}
+              </button>
+            </div>
+            
+            <div class="mt-6">
+              <button onclick="navigateTo('admin-login')" class="text-white/70 hover:text-white hover:bg-white/10 px-4 py-2 rounded-lg flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-gear"></i>
+                ${settings.button_admin}
+              </button>
+            </div>
+          </div>
+          
+          <footer class="relative z-10 bg-black/20 backdrop-blur-sm py-4 text-center text-white/80">
+            <p>${settings.footer_text}</p>
+          </footer>
+        </div>
+      `;
+    }
+
+    // Login Page
+    function renderLoginPage() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          
+          <div class="absolute top-4 right-4 z-20">
+            <button id="audio-toggle" onclick="toggleAudio()" class="bg-white/90 hover:bg-white p-2 rounded-lg border border-gray-200 transition-all">
+              <i class="fa-solid ${audioEnabled ? 'fa-volume-high' : 'fa-volume-xmark'} w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div class="relative z-10 flex-1 flex items-center justify-center p-6">
+            <div class="w-full max-w-md bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+              <div class="text-center p-6">
+                <div class="flex justify-center mb-4">
+                  ${getPaskibrakaLogo(64)}
+                </div>
+                <h2 class="text-2xl font-bold text-red-700">${settings.login_title}</h2>
+                <p class="text-gray-500">${settings.login_subtitle}</p>
+              </div>
+              
+              <div class="p-6 pt-0">
+                <form id="login-form" onsubmit="handleLogin(event)">
+                  <div id="login-error" class="hidden bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span id="login-error-text"></span>
+                  </div>
+                  
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Username</label>
+                      <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3 top-3 text-gray-400"></i>
+                        <input type="text" id="login-username" placeholder="Masukkan username" class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Password</label>
+                      <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-3 text-gray-400"></i>
+                        <input type="password" id="login-password" placeholder="Masukkan password" class="w-full pl-10 pr-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                          <i class="fa-solid fa-eye"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4">
+                      <button type="button" onclick="navigateTo('landing')" class="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        Kembali
+                      </button>
+                      <button type="submit" id="login-submit" class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg transition-all">
+                        Masuk
+                      </button>
+                    </div>
+                    
+                    <div class="text-center mt-6">
+                      <p class="text-gray-600 text-sm">
+                        Belum punya akun?
+                        <button type="button" onclick="navigateTo('register')" class="text-red-600 hover:text-red-700 font-medium ml-1">Daftar Sekarang</button>
+                      </p>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <audio id="bg-audio" loop>
+            <source src="/indonesia-raya.mp3" type="audio/mpeg">
+          </audio>
+        </div>
+      `;
+    }
+
+    // Register Page
+    function renderRegisterPage() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          
+          <div class="relative z-10 flex-1 py-8 px-4 overflow-y-auto">
+            <div class="max-w-2xl mx-auto">
+              <div class="bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+                <div class="text-center p-6">
+                  <div class="flex justify-center mb-4">
+                    <i class="fa-solid fa-user-plus text-5xl text-red-600"></i>
+                  </div>
+                  <h2 class="text-2xl font-bold text-red-700">${settings.register_title}</h2>
+                  <p class="text-gray-500">${settings.register_subtitle}</p>
+                </div>
+                
+                <div class="p-6 pt-0">
+                  <form id="register-form" onsubmit="handleRegister(event)">
+                    <div id="register-error" class="hidden bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg mb-4 flex items-center gap-2">
+                      <i class="fa-solid fa-circle-exclamation"></i>
+                      <span id="register-error-text"></span>
+                    </div>
+                    
+                    <!-- Data Akun -->
+                    <div class="space-y-4 mb-6">
+                      <h3 class="font-semibold text-lg text-gray-800 border-b pb-2">Data Akun</h3>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Username *</label>
+                          <input type="text" id="reg-username" placeholder="Minimal 4 karakter" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Email *</label>
+                          <input type="email" id="reg-email" placeholder="contoh@email.com" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Password *</label>
+                          <div class="relative">
+                            <input type="password" id="reg-password" placeholder="Minimal 6 karakter" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                            <button type="button" onclick="togglePasswordVisibility('reg-password')" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                              <i class="fa-solid fa-eye"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Konfirmasi Password *</label>
+                          <input type="password" id="reg-confirm-password" placeholder="Ulangi password" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Data Diri -->
+                    <div class="space-y-4 mb-6">
+                      <h3 class="font-semibold text-lg text-gray-800 border-b pb-2">Data Diri</h3>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                          <label class="block text-sm font-medium mb-1">Nama Lengkap *</label>
+                          <input type="text" id="reg-fullname" placeholder="Nama lengkap sesuai akta" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Tempat Lahir *</label>
+                          <input type="text" id="reg-pob" placeholder="Kota kelahiran" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Tanggal Lahir *</label>
+                          <input type="date" id="reg-dob" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Jenis Kelamin *</label>
+                          <select id="reg-gender" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                            <option value="">Pilih</option>
+                            <option value="Laki-laki">Laki-laki</option>
+                            <option value="Perempuan">Perempuan</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Agama *</label>
+                          <select id="reg-religion" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                            <option value="">Pilih</option>
+                            <option value="Islam">Islam</option>
+                            <option value="Kristen">Kristen</option>
+                            <option value="Katolik">Katolik</option>
+                            <option value="Hindu">Hindu</option>
+                            <option value="Buddha">Buddha</option>
+                            <option value="Konghucu">Konghucu</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Data Fisik -->
+                    <div class="space-y-4 mb-6">
+                      <h3 class="font-semibold text-lg text-gray-800 border-b pb-2">Data Fisik</h3>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Tinggi Badan (cm) *</label>
+                          <input type="number" id="reg-height" placeholder="contoh: 165" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Berat Badan (kg) *</label>
+                          <input type="number" id="reg-weight" placeholder="contoh: 55" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Data Sekolah -->
+                    <div class="space-y-4 mb-6">
+                      <h3 class="font-semibold text-lg text-gray-800 border-b pb-2">Data Sekolah</h3>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Asal Sekolah *</label>
+                          <input type="text" id="reg-school" placeholder="Nama sekolah" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Kelas *</label>
+                          <select id="reg-class" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                            <option value="">Pilih</option>
+                            <option value="X">X (Sepuluh)</option>
+                            <option value="XI">XI (Sebelas)</option>
+                            <option value="XII">XII (Dua belas)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <!-- Data Kontak -->
+                    <div class="space-y-4 mb-6">
+                      <h3 class="font-semibold text-lg text-gray-800 border-b pb-2">Data Kontak</h3>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Nomor Telepon *</label>
+                          <input type="tel" id="reg-phone" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-medium mb-1">Alamat Lengkap *</label>
+                          <input type="text" id="reg-address" placeholder="Alamat lengkap" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4">
+                      <button type="button" onclick="navigateTo('landing')" class="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        Kembali
+                      </button>
+                      <button type="submit" id="register-submit" class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        Daftar
+                      </button>
+                    </div>
+                    
+                    <div class="text-center mt-6">
+                      <p class="text-gray-600 text-sm">
+                        Sudah punya akun?
+                        <button type="button" onclick="navigateTo('login')" class="text-red-600 hover:text-red-700 font-medium ml-1">Login di sini</button>
+                      </p>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Register Success Page
+    function renderRegisterSuccess() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          <div class="relative z-10 flex-1 flex items-center justify-center p-6">
+            <div class="w-full max-w-md bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+              <div class="p-8 text-center">
+                <div class="mb-4">
+                  <i class="fa-solid fa-circle-check text-6xl text-green-500"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-green-600 mb-2">Pendaftaran Berhasil!</h2>
+                <p class="text-gray-600 mb-6">Akun Anda telah berhasil dibuat. Silakan login untuk melanjutkan.</p>
+                <button onclick="navigateTo('login')" class="bg-red-600 text-white hover:bg-red-700 py-2 px-6 rounded-lg flex items-center justify-center gap-2 mx-auto transition-all">
+                  <i class="fa-solid fa-arrow-left"></i>
+                  Ke Halaman Login
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Dashboard Page
+    function renderDashboardPage() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          
+          <div class="relative z-10 flex-1 flex items-center justify-center p-3 md:p-6">
+            <div class="w-full max-w-2xl bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+              <div class="text-center p-4 md:p-6">
+                <div class="flex justify-center mb-4">
+                  ${getPaskibrakaLogo(64)}
+                </div>
+                <h2 class="text-lg md:text-2xl font-bold text-red-700">Selamat Datang, ${currentUser?.fullName || 'Peserta'}!</h2>
+                <p class="text-gray-500 text-sm">Dashboard Peserta Seleksi Paskibraka</p>
+              </div>
+              
+              <div class="p-4 md:p-6 pt-0 space-y-4 md:space-y-6" id="dashboard-content">
+                <!-- Loading state -->
+                <div class="flex items-center justify-center py-8">
+                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Quiz Page
+    let quizQuestions = [];
+    let quizAnswers = {};
+    let quizCurrentIndex = 0;
+    let quizTimeLeft = 0;
+    let quizTimer = null;
+    let quizStarted = false;
+    let quizResult = null;
+
+    function renderQuizPage() {
+      if (quizResult) {
+        return renderQuizResult();
+      }
+      
+      if (!quizStarted) {
+        return renderQuizStart();
+      }
+      
+      return renderQuizQuestion();
+    }
+
+    function renderQuizStart() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          <div class="relative z-10 flex-1 flex items-center justify-center p-3 md:p-6">
+            <div class="w-full max-w-lg bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+              <div class="text-center p-4 md:p-6 border-b">
+                <h2 class="text-lg md:text-2xl font-bold text-red-700">${settings.quiz_title}</h2>
+                <p class="text-gray-500 text-sm">Persiapan Ujian Seleksi Paskibraka</p>
+              </div>
+              
+              <div class="p-4 md:p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-lg">
+                  <div class="text-center">
+                    <i class="fa-solid fa-clock text-2xl md:text-3xl text-blue-500 mb-2"></i>
+                    <p class="text-xl md:text-2xl font-bold">${settings.quiz_duration}</p>
+                    <p class="text-xs md:text-sm text-gray-500">Menit</p>
+                  </div>
+                  <div class="text-center">
+                    <i class="fa-solid fa-circle-question text-2xl md:text-3xl text-green-500 mb-2"></i>
+                    <p class="text-xl md:text-2xl font-bold" id="quiz-question-count">-</p>
+                    <p class="text-xs md:text-sm text-gray-500">Soal</p>
+                  </div>
+                </div>
+                
+                <div class="p-3 md:p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <h4 class="font-semibold text-yellow-700 mb-2 text-sm md:text-base">Peraturan Ujian:</h4>
+                  <ul class="text-xs md:text-sm text-yellow-600 space-y-1">
+                    <li>• Jawaban tidak dapat diubah setelah dikirim</li>
+                    <li>• Soal akan otomatis dikirim saat waktu habis</li>
+                    <li>• Nilai minimal lulus: ${settings.quiz_passing_score}%</li>
+                    <li>• Pastikan koneksi internet stabil</li>
+                  </ul>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-3">
+                  <button onclick="exitQuiz()" class="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    Kembali
+                  </button>
+                  <button onclick="startQuiz()" class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all">
+                    <i class="fa-solid fa-play"></i>
+                    Mulai Ujian
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderQuizQuestion() {
+      const current = quizQuestions[quizCurrentIndex];
+      if (!current) return renderQuizStart();
+      
+      const progress = ((quizCurrentIndex + 1) / quizQuestions.length) * 100;
+      const minutes = Math.floor(quizTimeLeft / 60);
+      const seconds = quizTimeLeft % 60;
+      const timeDisplay = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      
+      return `
+        <div class="min-h-screen flex flex-col bg-gray-50">
+          <header class="bg-red-600 text-white shadow-lg sticky top-0 z-10">
+            <div class="container mx-auto px-2 md:px-4 py-2 md:py-3 flex items-center justify-between">
+              <h1 class="text-sm md:text-lg font-bold truncate max-w-[120px] md:max-w-none">${settings.quiz_title}</h1>
+              <div class="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-lg ${quizTimeLeft < 300 ? 'bg-red-500 animate-pulse' : 'bg-white/20'}">
+                <i class="fa-solid fa-clock"></i>
+                <span class="text-lg md:text-xl font-bold font-mono">${timeDisplay}</span>
+              </div>
+            </div>
+            <div class="h-1 bg-white/20">
+              <div class="h-full bg-white transition-all" style="width: ${progress}%"></div>
+            </div>
+          </header>
+
+          <main class="flex-1 container mx-auto px-2 md:px-4 py-4 md:py-6 max-w-3xl">
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div class="p-4 md:p-6 border-b">
+                <div class="flex items-center justify-between mb-3 md:mb-4">
+                  <span class="border text-sm px-2 md:px-3 py-1 rounded-full">Soal ${quizCurrentIndex + 1}/${quizQuestions.length}</span>
+                </div>
+                <h3 class="text-base md:text-xl font-semibold">${current.question}</h3>
+              </div>
+              
+              <div class="p-4 md:p-6 space-y-3">
+                ${['A', 'B', 'C', 'D'].map(opt => {
+                  const optionText = current[`option${opt}`];
+                  const isSelected = quizAnswers[current.id] === opt;
+                  return `
+                    <button onclick="selectAnswer('${current.id}', '${opt}')" class="w-full p-3 md:p-4 text-left rounded-lg border-2 transition-all text-sm md:text-base ${isSelected ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'}">
+                      <span class="inline-flex items-center justify-center w-6 h-6 md:w-8 md:h-8 rounded-full mr-2 md:mr-3 font-bold text-xs md:text-sm ${isSelected ? 'bg-red-500 text-white' : 'bg-gray-200'}">${opt}</span>
+                      ${optionText}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+              <button onclick="prevQuestion()" ${quizCurrentIndex === 0 ? 'disabled' : ''} class="w-full sm:w-auto border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-arrow-left"></i>
+                Sebelumnya
+              </button>
+              
+              <div class="flex gap-1 md:gap-2 overflow-x-auto max-w-full py-2 px-1">
+                ${quizQuestions.map((q, idx) => `
+                  <button onclick="goToQuestion(${idx})" class="w-7 h-7 md:w-8 md:h-8 rounded-full text-xs md:text-sm font-medium transition-all flex-shrink-0 ${idx === quizCurrentIndex ? 'bg-red-600 text-white' : quizAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-gray-200'}">
+                    ${idx + 1}
+                  </button>
+                `).join('')}
+              </div>
+              
+              ${quizCurrentIndex === quizQuestions.length - 1 ? `
+                <button onclick="submitQuiz()" class="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all">
+                  <i class="fa-solid fa-paper-plane"></i>
+                  Selesai
+                </button>
+              ` : `
+                <button onclick="nextQuestion()" class="w-full sm:w-auto bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all">
+                  Selanjutnya
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
+              `}
+            </div>
+          </main>
+        </div>
+      `;
+    }
+
+    function renderQuizResult() {
+      const passingScore = parseInt(settings.quiz_passing_score) || 70;
+      const passed = quizResult.score >= passingScore;
+      const timeMinutes = Math.floor(quizResult.timeSpent / 60);
+      const timeSeconds = quizResult.timeSpent % 60;
+      
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          <div class="relative z-10 flex-1 flex items-center justify-center p-6">
+            <div class="w-full max-w-lg bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+              <div class="p-8 text-center">
+                <div class="mb-4">
+                  <i class="fa-solid ${passed ? 'fa-trophy text-green-500' : 'fa-circle-exclamation text-red-500'} text-6xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold mb-2 ${passed ? 'text-green-600' : 'text-red-600'}">
+                  ${passed ? 'Selamat! Anda Lulus!' : 'Maaf, Anda Belum Lulus'}
+                </h2>
+                <p class="text-gray-600 mb-6">Ujian telah selesai</p>
+                
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                  <div class="p-4 bg-red-50 rounded-lg">
+                    <p class="text-3xl font-bold text-red-600">${quizResult.score}%</p>
+                    <p class="text-sm text-gray-500">Nilai</p>
+                  </div>
+                  <div class="p-4 bg-green-50 rounded-lg">
+                    <p class="text-3xl font-bold text-green-600">${quizResult.correctAnswers}/${quizResult.totalQuestions}</p>
+                    <p class="text-sm text-gray-500">Benar</p>
+                  </div>
+                  <div class="p-4 bg-blue-50 rounded-lg">
+                    <p class="text-3xl font-bold text-blue-600">${timeMinutes}:${timeSeconds.toString().padStart(2, '0')}</p>
+                    <p class="text-sm text-gray-500">Waktu</p>
+                  </div>
+                </div>
+                
+                <p class="text-sm text-gray-500 mb-6">Nilai minimal lulus: ${passingScore}%</p>
+                
+                <button onclick="goToDashboard()" class="bg-red-600 text-white hover:bg-red-700 py-2 px-6 rounded-lg transition-all">
+                  Lihat Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Admin Login Page
+    function renderAdminLoginPage() {
+      return `
+        <div class="min-h-screen flex flex-col relative overflow-hidden">
+          <div class="absolute inset-0 animate-gradient-red-white opacity-70"></div>
+          
+          <div class="relative z-10 flex-1 flex items-center justify-center p-6">
+            <div class="w-full max-w-md bg-white/95 backdrop-blur-lg shadow-2xl rounded-lg overflow-hidden">
+              <div class="text-center p-6">
+                <div class="flex justify-center mb-4">
+                  <i class="fa-solid fa-gear text-5xl text-red-600"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-red-700">Admin Login</h2>
+                <p class="text-gray-500">Masuk ke panel administrator</p>
+              </div>
+              
+              <div class="p-6 pt-0">
+                <form id="admin-login-form" onsubmit="handleAdminLogin(event)">
+                  <div id="admin-login-error" class="hidden bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span id="admin-login-error-text"></span>
+                  </div>
+                  
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Username</label>
+                      <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3 top-3 text-gray-400"></i>
+                        <input type="text" id="admin-username" placeholder="Username admin" class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Password</label>
+                      <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-3 text-gray-400"></i>
+                        <input type="password" id="admin-password" placeholder="Password admin" class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                      </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4">
+                      <button type="button" onclick="navigateTo('landing')" class="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        Kembali
+                      </button>
+                      <button type="submit" class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg transition-all">
+                        Masuk
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Admin Panel
+    let adminActiveTab = 'participants';
+    let adminParticipants = [];
+    let adminQuestions = [];
+    let adminSongs = [];
+    let adminAnnouncements = [];
+    let adminCredentials = { username: '', hasPassword: false };
+
+    function renderAdminPanel() {
+      return `
+        <div class="min-h-screen flex flex-col bg-gray-50">
+          <header class="bg-red-600 text-white shadow-lg">
+            <div class="container mx-auto px-2 md:px-4 py-3 md:py-4 flex items-center justify-between">
+              <div class="flex items-center gap-2 md:gap-3">
+                ${getPaskibrakaLogo(32)}
+                <h1 class="text-sm md:text-xl font-bold truncate">Admin Panel</h1>
+              </div>
+              <button onclick="navigateTo('landing')" class="text-white hover:bg-red-700 px-2 md:px-4 py-1 md:py-2 rounded-lg flex items-center gap-1 md:gap-2 text-xs md:text-sm transition-all">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span class="hidden sm:inline">Keluar</span>
+                <span class="sm:hidden">Exit</span>
+              </button>
+            </div>
+          </header>
+
+          <main class="flex-1 container mx-auto px-2 md:px-4 py-4 md:py-6">
+            <div class="w-full overflow-x-auto pb-2 -mx-2 px-2 md:mx-0 md:px-0">
+              <div class="inline-flex w-max md:w-full md:grid md:grid-cols-6 gap-1 md:gap-0 mb-4 md:mb-6 bg-gray-100 p-1 rounded-lg">
+                <button onclick="setAdminTab('participants')" class="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg transition-all ${adminActiveTab === 'participants' ? 'bg-white shadow text-red-600 font-medium' : 'hover:bg-gray-200'}">
+                  <i class="fa-solid fa-users"></i>
+                  <span>Peserta</span>
+                </button>
+                <button onclick="setAdminTab('questions')" class="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg transition-all ${adminActiveTab === 'questions' ? 'bg-white shadow text-red-600 font-medium' : 'hover:bg-gray-200'}">
+                  <i class="fa-solid fa-circle-question"></i>
+                  <span>Soal</span>
+                </button>
+                <button onclick="setAdminTab('songs')" class="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg transition-all ${adminActiveTab === 'songs' ? 'bg-white shadow text-red-600 font-medium' : 'hover:bg-gray-200'}">
+                  <i class="fa-solid fa-music"></i>
+                  <span>Lagu</span>
+                </button>
+                <button onclick="setAdminTab('announcements')" class="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg transition-all ${adminActiveTab === 'announcements' ? 'bg-white shadow text-red-600 font-medium' : 'hover:bg-gray-200'}">
+                  <i class="fa-solid fa-bullhorn"></i>
+                  <span class="hidden sm:inline">Pengumuman</span>
+                  <span class="sm:hidden">Info</span>
+                </button>
+                <button onclick="setAdminTab('settings')" class="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg transition-all ${adminActiveTab === 'settings' ? 'bg-white shadow text-red-600 font-medium' : 'hover:bg-gray-200'}">
+                  <i class="fa-solid fa-gear"></i>
+                  <span class="hidden sm:inline">Pengaturan</span>
+                  <span class="sm:hidden">Setting</span>
+                </button>
+                <button onclick="setAdminTab('credentials')" class="flex items-center justify-center gap-1 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2 rounded-lg transition-all ${adminActiveTab === 'credentials' ? 'bg-white shadow text-red-600 font-medium' : 'hover:bg-gray-200'}">
+                  <i class="fa-solid fa-key"></i>
+                  <span class="hidden sm:inline">Keamanan</span>
+                  <span class="sm:hidden">Akun</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="admin-content">
+              <div class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+              </div>
+            </div>
+          </main>
+
+          <footer class="bg-gray-100 border-t py-3 md:py-4 text-center text-gray-600 text-xs md:text-sm">
+            <p>Admin Panel Seleksi Paskibraka © 2024</p>
+          </footer>
+        </div>
+      `;
+    }
+
+    function setAdminTab(tab) {
+      adminActiveTab = tab;
+      renderAdminContent();
+      if (tab === 'credentials') {
+        loadAdminCredentials();
+      }
+    }
+
+    function renderAdminContent() {
+      const content = document.getElementById('admin-content');
+      if (!content) return;
+      
+      switch (adminActiveTab) {
+        case 'participants':
+          content.innerHTML = renderParticipantsTab();
+          break;
+        case 'questions':
+          content.innerHTML = renderQuestionsTab();
+          break;
+        case 'songs':
+          content.innerHTML = renderSongsTab();
+          break;
+        case 'announcements':
+          content.innerHTML = renderAnnouncementsTab();
+          break;
+        case 'settings':
+          content.innerHTML = renderSettingsTab();
+          break;
+        case 'credentials':
+          content.innerHTML = renderCredentialsTab();
+          break;
+      }
+    }
+
+    function renderParticipantsTab() {
+      const passingScore = parseInt(settings.quiz_passing_score) || 70;
+      
+      return `
+        <div>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 md:mb-6">
+            <div>
+              <h2 class="text-lg md:text-2xl font-bold">Daftar Peserta</h2>
+              <p class="text-gray-500 text-sm">Total: ${adminParticipants.length} peserta</p>
+            </div>
+            <button onclick="exportCSV()" class="border border-gray-300 text-gray-700 hover:bg-gray-50 py-1 px-3 rounded-lg flex items-center gap-2 text-xs md:text-sm transition-all">
+              <i class="fa-solid fa-download"></i>
+              Export CSV
+            </button>
+          </div>
+          
+          <!-- Mobile Card View -->
+          <div class="md:hidden space-y-3">
+            ${adminParticipants.length === 0 ? `
+              <div class="bg-white rounded-lg shadow p-6 text-center text-gray-500">Belum ada peserta terdaftar</div>
+            ` : adminParticipants.map(p => {
+              const isPassed = p.quizScore !== null && p.quizScore >= passingScore;
+              const timeSpent = p.quizTimeSpent ? `${Math.floor(p.quizTimeSpent / 60)}:${(p.quizTimeSpent % 60).toString().padStart(2, '0')}` : '-';
+              
+              return `
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                  <div class="p-4">
+                    <div class="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 class="font-semibold text-base">${p.fullName}</h3>
+                        <p class="text-xs text-gray-500">${p.email}</p>
+                      </div>
+                      <span class="${p.status === 'approved' ? 'bg-green-500' : p.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'} text-white text-xs px-2 py-1 rounded-full">
+                        ${p.status === 'approved' ? 'Disetujui' : p.status === 'rejected' ? 'Ditolak' : 'Pending'}
+                      </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+                      <div>
+                        <p class="text-gray-500 text-xs">Sekolah</p>
+                        <p class="font-medium">${p.school}</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-500 text-xs">Kelas</p>
+                        <p class="font-medium">${p.class}</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-500 text-xs">Jenis Kelamin</p>
+                        <p class="font-medium">${p.gender}</p>
+                      </div>
+                      <div>
+                        <p class="text-gray-500 text-xs">Tinggi/Berat</p>
+                        <p class="font-medium">${p.height} cm / ${p.weight} kg</p>
+                      </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 rounded-lg p-3 mb-3">
+                      <p class="text-gray-500 text-xs mb-1">Nilai Ujian</p>
+                      ${p.quizScore !== null ? `
+                        <div class="flex items-center gap-4">
+                          <span class="text-2xl font-bold ${isPassed ? 'text-green-600' : 'text-red-600'}">${p.quizScore}%</span>
+                          <div class="text-sm">
+                            <p class="text-gray-600">${p.quizCorrectAnswers}/${p.quizTotalQuestions} benar</p>
+                            <p class="text-gray-400 text-xs">${timeSpent} menit</p>
+                          </div>
+                        </div>
+                      ` : `<span class="text-gray-400">Belum ujian</span>`}
+                    </div>
+                    
+                    <div class="flex gap-2">
+                      <button onclick="updateParticipantStatus('${p.id}', 'approved')" class="flex-1 border border-green-200 text-green-600 hover:bg-green-50 py-2 px-3 rounded-lg text-sm">✓ Setujui</button>
+                      <button onclick="updateParticipantStatus('${p.id}', 'rejected')" class="flex-1 border border-red-200 text-red-600 hover:bg-red-50 py-2 px-3 rounded-lg text-sm">✗ Tolak</button>
+                      <button onclick="deleteParticipant('${p.id}', '${p.fullName}')" class="text-gray-400 hover:text-red-600 p-2 border rounded-lg" title="Hapus Akun"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          
+          <!-- Desktop Table View -->
+          <div class="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto custom-scrollbar" style="max-height: 500px;">
+              <table class="min-w-[700px] w-full">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th class="text-left p-3 font-medium">Nama Lengkap</th>
+                    <th class="text-left p-3 font-medium">Sekolah/Kelas</th>
+                    <th class="text-left p-3 font-medium">Jenis Kelamin</th>
+                    <th class="text-left p-3 font-medium">Tinggi/Berat</th>
+                    <th class="text-left p-3 font-medium">Nilai Ujian</th>
+                    <th class="text-left p-3 font-medium">Status</th>
+                    <th class="text-left p-3 font-medium">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${adminParticipants.length === 0 ? `
+                    <tr><td colspan="7" class="text-center text-gray-500 py-8">Belum ada peserta terdaftar</td></tr>
+                  ` : adminParticipants.map(p => {
+                    const isPassed = p.quizScore !== null && p.quizScore >= passingScore;
+                    const timeSpent = p.quizTimeSpent ? `${Math.floor(p.quizTimeSpent / 60)}:${(p.quizTimeSpent % 60).toString().padStart(2, '0')}` : '-';
+                    
+                    return `
+                      <tr class="border-t hover:bg-gray-50">
+                        <td class="p-3">
+                          <div class="font-medium">${p.fullName}</div>
+                          <div class="text-xs text-gray-500">${p.email}</div>
+                        </td>
+                        <td class="p-3">
+                          <div>${p.school}</div>
+                          <div class="text-xs text-gray-500">Kelas ${p.class}</div>
+                        </td>
+                        <td class="p-3">${p.gender}</td>
+                        <td class="p-3">${p.height} cm / ${p.weight} kg</td>
+                        <td class="p-3">
+                          ${p.quizScore !== null ? `
+                            <div class="flex flex-col">
+                              <span class="font-bold ${isPassed ? 'text-green-600' : 'text-red-600'}">${p.quizScore}%</span>
+                              <span class="text-xs text-gray-500">${p.quizCorrectAnswers}/${p.quizTotalQuestions} benar</span>
+                              <span class="text-xs text-gray-400">${timeSpent} menit</span>
+                            </div>
+                          ` : `<span class="text-gray-400 text-sm">Belum ujian</span>`}
+                        </td>
+                        <td class="p-3">
+                          <span class="${p.status === 'approved' ? 'bg-green-500' : p.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'} text-white text-xs px-2 py-1 rounded-full">
+                            ${p.status === 'approved' ? 'Disetujui' : p.status === 'rejected' ? 'Ditolak' : 'Pending'}
+                          </span>
+                        </td>
+                        <td class="p-3">
+                          <div class="flex gap-1 md:gap-2">
+                            <button onclick="updateParticipantStatus('${p.id}', 'approved')" class="text-green-600 hover:text-green-700 p-1 border rounded text-sm" title="Setujui">✓</button>
+                            <button onclick="updateParticipantStatus('${p.id}', 'rejected')" class="text-red-600 hover:text-red-700 p-1 border rounded text-sm" title="Tolak">✗</button>
+                            <button onclick="deleteParticipant('${p.id}', '${p.fullName}')" class="text-gray-400 hover:text-red-600 p-1 border rounded text-sm" title="Hapus Akun"><i class="fa-solid fa-trash w-3 h-3"></i></button>
+                          </div>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderQuestionsTab() {
+      return `
+        <div>
+          <h2 class="text-lg md:text-2xl font-bold mb-4 md:mb-6">Manajemen Soal</h2>
+          
+          <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+            <h3 class="font-semibold text-lg mb-4">Tambah Soal Baru</h3>
+            <form id="add-question-form" onsubmit="addQuestion(event)">
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Pertanyaan</label>
+                  <input type="text" id="q-question" placeholder="Tulis pertanyaan..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Opsi A</label>
+                    <input type="text" id="q-optA" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Opsi B</label>
+                    <input type="text" id="q-optB" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Opsi C</label>
+                    <input type="text" id="q-optC" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Opsi D</label>
+                    <input type="text" id="q-optD" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">Jawaban Benar</label>
+                  <select id="q-answer" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+                <button type="submit" class="bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center gap-2 transition-all">
+                  <i class="fa-solid fa-plus"></i>
+                  Tambah Soal
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto custom-scrollbar" style="max-height: 400px;">
+              <table class="min-w-[500px] w-full">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th class="text-left p-3 font-medium">Soal</th>
+                    <th class="text-left p-3 font-medium">Jawaban</th>
+                    <th class="text-left p-3 font-medium">Status</th>
+                    <th class="text-left p-3 font-medium">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${adminQuestions.length === 0 ? `
+                    <tr><td colspan="4" class="text-center text-gray-500 py-8">Belum ada soal</td></tr>
+                  ` : adminQuestions.map(q => `
+                    <tr class="border-t hover:bg-gray-50">
+                      <td class="p-3 max-w-md truncate">${q.question}</td>
+                      <td class="p-3"><span class="border px-2 py-1 rounded">${q.answer}</span></td>
+                      <td class="p-3">
+                        <span class="${q.isActive ? 'bg-green-500' : 'bg-gray-400'} text-white text-xs px-2 py-1 rounded-full">
+                          ${q.isActive ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </td>
+                      <td class="p-3">
+                        <button onclick="deleteQuestion('${q.id}')" class="text-red-600 hover:text-red-700">
+                          <i class="fa-solid fa-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSongsTab() {
+      return `
+        <div>
+          <h2 class="text-lg md:text-2xl font-bold mb-4 md:mb-6">Lagu Nasional</h2>
+          
+          <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+            <h3 class="font-semibold text-lg mb-4">Tambah Lagu Nasional</h3>
+            <form id="add-song-form" onsubmit="addSong(event)">
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Judul Lagu</label>
+                  <input type="text" id="s-title" placeholder="Judul lagu..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">URL Audio</label>
+                  <input type="url" id="s-url" placeholder="https://example.com/song.mp3" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                </div>
+                <button type="submit" class="bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center gap-2 transition-all">
+                  <i class="fa-solid fa-music"></i>
+                  Tambah Lagu
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="min-w-[400px] w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="text-left p-3 font-medium">Judul</th>
+                    <th class="text-left p-3 font-medium">Status</th>
+                    <th class="text-left p-3 font-medium">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${adminSongs.length === 0 ? `
+                    <tr><td colspan="3" class="text-center text-gray-500 py-8">Belum ada lagu</td></tr>
+                  ` : adminSongs.map(s => `
+                    <tr class="border-t hover:bg-gray-50">
+                      <td class="p-3 font-medium">${s.title}</td>
+                      <td class="p-3">
+                        <span class="${s.isActive ? 'bg-green-500' : 'bg-gray-400'} text-white text-xs px-2 py-1 rounded-full">
+                          ${s.isActive ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </td>
+                      <td class="p-3">
+                        <button onclick="deleteSong('${s.id}')" class="text-red-600 hover:text-red-700">
+                          <i class="fa-solid fa-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAnnouncementsTab() {
+      return `
+        <div>
+          <h2 class="text-lg md:text-2xl font-bold mb-4 md:mb-6">Pengumuman</h2>
+          
+          <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+            <h3 class="font-semibold text-lg mb-4">Tambah Pengumuman</h3>
+            <form id="add-announcement-form" onsubmit="addAnnouncement(event)">
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-medium mb-1">Judul</label>
+                  <input type="text" id="a-title" placeholder="Judul pengumuman..." class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">Isi Pengumuman</label>
+                  <textarea id="a-content" placeholder="Tulis pengumuman..." rows="3" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required></textarea>
+                </div>
+                <button type="submit" class="bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center gap-2 transition-all">
+                  <i class="fa-solid fa-bullhorn"></i>
+                  Tambah Pengumuman
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="min-w-[500px] w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="text-left p-3 font-medium">Judul</th>
+                    <th class="text-left p-3 font-medium">Isi</th>
+                    <th class="text-left p-3 font-medium">Status</th>
+                    <th class="text-left p-3 font-medium">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${adminAnnouncements.length === 0 ? `
+                    <tr><td colspan="4" class="text-center text-gray-500 py-8">Belum ada pengumuman</td></tr>
+                  ` : adminAnnouncements.map(a => `
+                    <tr class="border-t hover:bg-gray-50">
+                      <td class="p-3 font-medium">${a.title}</td>
+                      <td class="p-3 max-w-xs truncate">${a.content}</td>
+                      <td class="p-3">
+                        <span class="${a.isActive ? 'bg-green-500' : 'bg-gray-400'} text-white text-xs px-2 py-1 rounded-full">
+                          ${a.isActive ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </td>
+                      <td class="p-3">
+                        <div class="flex gap-2">
+                          <button onclick="toggleAnnouncement('${a.id}', ${!a.isActive})" class="text-xs border px-2 py-1 rounded hover:bg-gray-100">
+                            ${a.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                          </button>
+                          <button onclick="deleteAnnouncement('${a.id}')" class="text-red-600 hover:text-red-700">
+                            <i class="fa-solid fa-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSettingsTab() {
+      const settingGroups = [
+        { title: 'Halaman Utama', settings: [
+          { key: 'site_title', label: 'Judul Website' },
+          { key: 'site_subtitle', label: 'Subjudul Website' },
+          { key: 'badge_merah', label: 'Teks Badge Merah' },
+          { key: 'badge_putih', label: 'Teks Badge Putih' },
+          { key: 'button_masuk', label: 'Teks Tombol Masuk' },
+          { key: 'button_buat_akun', label: 'Teks Tombol Buat Akun' },
+          { key: 'button_admin', label: 'Teks Tombol Admin' },
+          { key: 'footer_text', label: 'Teks Footer' },
+        ]},
+        { title: 'Halaman Login', settings: [
+          { key: 'login_title', label: 'Judul Login' },
+          { key: 'login_subtitle', label: 'Subjudul Login' },
+        ]},
+        { title: 'Halaman Registrasi', settings: [
+          { key: 'register_title', label: 'Judul Registrasi' },
+          { key: 'register_subtitle', label: 'Subjudul Registrasi' },
+        ]},
+        { title: 'Pengaturan Ujian', settings: [
+          { key: 'quiz_title', label: 'Judul Ujian' },
+          { key: 'quiz_duration', label: 'Durasi Ujian (menit)' },
+          { key: 'quiz_passing_score', label: 'Nilai Minimal Lulus (%)' },
+        ]},
+      ];
+
+      return `
+        <div>
+          <h2 class="text-lg md:text-2xl font-bold mb-2">Pengaturan Teks</h2>
+          <p class="text-gray-500 text-sm mb-4 md:mb-6">Ubah teks yang ditampilkan pada halaman website</p>
+          
+          <div class="space-y-6">
+            ${settingGroups.map(group => `
+              <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-4 border-b">
+                  <h3 class="font-semibold text-lg">${group.title}</h3>
+                </div>
+                <div class="p-4">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${group.settings.map(s => `
+                      <div>
+                        <label class="block text-sm font-medium mb-1">${s.label}</label>
+                        <input type="text" id="setting-${s.key}" value="${settings[s.key] || ''}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+            
+            <div class="flex gap-3 justify-end">
+              <button onclick="resetSettings()" class="border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg transition-all">
+                Reset ke Default
+              </button>
+              <button onclick="saveSettings()" class="bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg transition-all">
+                Simpan Pengaturan
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCredentialsTab() {
+      return `
+        <div>
+          <h2 class="text-lg md:text-2xl font-bold mb-2">Pengaturan Keamanan</h2>
+          <p class="text-gray-500 text-sm mb-4 md:mb-6">Ubah username dan password admin</p>
+          
+          <div class="bg-white rounded-lg shadow p-4 md:p-6 max-w-lg">
+            <div id="credentials-message" class="hidden mb-4 p-3 rounded-lg"></div>
+            
+            <form id="credentials-form" onsubmit="updateCredentials(event)">
+              <div class="space-y-4">
+                <div class="p-4 bg-blue-50 rounded-lg border border-blue-200 mb-4">
+                  <div class="flex items-center gap-2 text-blue-700">
+                    <i class="fa-solid fa-info-circle"></i>
+                    <span class="font-medium">Username saat ini: <strong id="current-username">${adminCredentials.username || 'Loading...'}</strong></span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium mb-1">Password Saat Ini *</label>
+                  <div class="relative">
+                    <input type="password" id="cred-current-password" placeholder="Masukkan password saat ini" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                    <button type="button" onclick="togglePasswordVisibility('cred-current-password')" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                      <i class="fa-solid fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="border-t pt-4 mt-4">
+                  <h4 class="font-medium text-gray-700 mb-3">Ubah Kredensial (opsional)</h4>
+                  
+                  <div class="space-y-4">
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Username Baru</label>
+                      <input type="text" id="cred-new-username" placeholder="Masukkan username baru (kosongkan jika tidak diubah)" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                      <p class="text-xs text-gray-500 mt-1">Minimal 4 karakter</p>
+                    </div>
+                    
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Password Baru</label>
+                      <div class="relative">
+                        <input type="password" id="cred-new-password" placeholder="Masukkan password baru (kosongkan jika tidak diubah)" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                        <button type="button" onclick="togglePasswordVisibility('cred-new-password')" class="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                          <i class="fa-solid fa-eye"></i>
+                        </button>
+                      </div>
+                      <p class="text-xs text-gray-500 mt-1">Minimal 6 karakter</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="flex gap-3 pt-4">
+                  <button type="submit" class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-solid fa-save"></i>
+                    Simpan Perubahan
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+          
+          <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6 max-w-lg">
+            <h4 class="font-semibold text-yellow-700 mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-exclamation-triangle"></i>
+              Peringatan
+            </h4>
+            <ul class="text-sm text-yellow-600 space-y-1">
+              <li>• Simpan username dan password baru di tempat aman</li>
+              <li>• Anda akan logout otomatis setelah mengubah kredensial</li>
+              <li>• Gunakan password yang kuat dan tidak mudah ditebak</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+
+    // Event Handlers
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const audio = document.getElementById('bg-audio');
+      if (audio) {
+        if (audioEnabled) {
+          audio.play().catch(() => {});
+        } else {
+          audio.pause();
+        }
+      }
+      const btn = document.getElementById('audio-toggle');
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid ${audioEnabled ? 'fa-volume-high' : 'fa-volume-xmark'} w-4 h-4"></i>`;
+      }
+    }
+
+    function togglePasswordVisibility(inputId) {
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value;
+      const password = document.getElementById('login-password').value;
+      const errorDiv = document.getElementById('login-error');
+      const errorText = document.getElementById('login-error-text');
+      const submitBtn = document.getElementById('login-submit');
+      
+      submitBtn.textContent = 'Memproses...';
+      submitBtn.disabled = true;
+      
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          currentUser = data.participant;
+          navigateTo('dashboard');
+        } else {
+          errorDiv.classList.remove('hidden');
+          errorText.textContent = data.error || 'Username atau password salah';
+        }
+      } catch (err) {
+        errorDiv.classList.remove('hidden');
+        errorText.textContent = 'Terjadi kesalahan. Silakan coba lagi.';
+      } finally {
+        submitBtn.textContent = 'Masuk';
+        submitBtn.disabled = false;
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const errorDiv = document.getElementById('register-error');
+      const errorText = document.getElementById('register-error-text');
+      const submitBtn = document.getElementById('register-submit');
+      
+      const username = document.getElementById('reg-username').value;
+      const email = document.getElementById('reg-email').value;
+      const password = document.getElementById('reg-password').value;
+      const confirmPassword = document.getElementById('reg-confirm-password').value;
+      const fullName = document.getElementById('reg-fullname').value;
+      const placeOfBirth = document.getElementById('reg-pob').value;
+      const dateOfBirth = document.getElementById('reg-dob').value;
+      const gender = document.getElementById('reg-gender').value;
+      const religion = document.getElementById('reg-religion').value;
+      const height = document.getElementById('reg-height').value;
+      const weight = document.getElementById('reg-weight').value;
+      const school = document.getElementById('reg-school').value;
+      const classGrade = document.getElementById('reg-class').value;
+      const phone = document.getElementById('reg-phone').value;
+      const address = document.getElementById('reg-address').value;
+      
+      // Validation
+      if (username.length < 4) {
+        errorDiv.classList.remove('hidden');
+        errorText.textContent = 'Username minimal 4 karakter';
+        return;
+      }
+      if (password.length < 6) {
+        errorDiv.classList.remove('hidden');
+        errorText.textContent = 'Password minimal 6 karakter';
+        return;
+      }
+      if (password !== confirmPassword) {
+        errorDiv.classList.remove('hidden');
+        errorText.textContent = 'Konfirmasi password tidak cocok';
+        return;
+      }
+      
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+      submitBtn.disabled = true;
+      
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username, email, password,
+            fullName, placeOfBirth, dateOfBirth, gender, religion,
+            height, weight, school, class: classGrade,
+            phone, address,
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          const app = document.getElementById('app');
+          app.innerHTML = `<div class="page-transition">${renderRegisterSuccess()}</div>`;
+        } else {
+          errorDiv.classList.remove('hidden');
+          errorText.textContent = data.error || 'Gagal membuat akun';
+        }
+      } catch (err) {
+        errorDiv.classList.remove('hidden');
+        errorText.textContent = 'Terjadi kesalahan. Silakan coba lagi.';
+      } finally {
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Daftar';
+        submitBtn.disabled = false;
+      }
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('admin-username').value;
+      const password = document.getElementById('admin-password').value;
+      const errorDiv = document.getElementById('admin-login-error');
+      const errorText = document.getElementById('admin-login-error-text');
+      
+      try {
+        const res = await fetch('/api/admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          currentPage = 'admin';
+          fetchAdminData();
+          render();
+        } else {
+          errorDiv.classList.remove('hidden');
+          errorText.textContent = data.error || 'Username atau password salah';
+        }
+      } catch (err) {
+        errorDiv.classList.remove('hidden');
+        errorText.textContent = 'Terjadi kesalahan. Silakan coba lagi.';
+      }
+    }
+
+    // Dashboard functions
+    async function loadDashboardData() {
+      if (!currentUser) return;
+      
+      const content = document.getElementById('dashboard-content');
+      
+      try {
+        const res = await fetch(`/api/quiz/result?participantId=${currentUser.id}`);
+        let quizResult = null;
+        if (res.ok) {
+          quizResult = await res.json();
+        }
+        
+        const passingScore = parseInt(settings.quiz_passing_score) || 70;
+        const passed = quizResult && quizResult.score >= passingScore;
+        
+        content.innerHTML = `
+          <!-- User Info -->
+          <div class="grid grid-cols-2 gap-2 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-lg text-sm md:text-base">
+            <div>
+              <p class="text-xs md:text-sm text-gray-500">Nama</p>
+              <p class="font-semibold truncate">${currentUser.fullName}</p>
+            </div>
+            <div>
+              <p class="text-xs md:text-sm text-gray-500">Sekolah</p>
+              <p class="font-semibold truncate">${currentUser.school}</p>
+            </div>
+            <div>
+              <p class="text-xs md:text-sm text-gray-500">Kelas</p>
+              <p class="font-semibold">${currentUser.class}</p>
+            </div>
+            <div>
+              <p class="text-xs md:text-sm text-gray-500">Status</p>
+              <span class="${currentUser.status === 'approved' ? 'bg-green-500' : currentUser.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'} text-white text-xs px-2 py-1 rounded-full">
+                ${currentUser.status === 'approved' ? 'Disetujui' : currentUser.status === 'rejected' ? 'Ditolak' : 'Pending'}
+              </span>
+            </div>
+          </div>
+
+          ${quizResult ? `
+            <div class="p-4 md:p-6 rounded-lg ${passed ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}">
+              <div class="text-center">
+                <i class="fa-solid ${passed ? 'fa-trophy text-green-500' : 'fa-circle-exclamation text-red-500'} text-4xl md:text-5xl mb-4"></i>
+                <h3 class="text-base md:text-xl font-bold mb-2">
+                  ${passed ? 'Selamat! Anda Lulus!' : 'Maaf, Anda Belum Lulus'}
+                </h3>
+                <div class="grid grid-cols-3 gap-2 md:gap-4 mt-4">
+                  <div class="text-center">
+                    <p class="text-xl md:text-3xl font-bold text-red-600">${quizResult.score}%</p>
+                    <p class="text-xs md:text-sm text-gray-500">Nilai</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-xl md:text-3xl font-bold text-green-600">${quizResult.correctAnswers}/${quizResult.totalQuestions}</p>
+                    <p class="text-xs md:text-sm text-gray-500">Benar</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-xl md:text-3xl font-bold text-blue-600">${Math.floor(quizResult.timeSpent / 60)}:${(quizResult.timeSpent % 60).toString().padStart(2, '0')}</p>
+                    <p class="text-xs md:text-sm text-gray-500">Waktu</p>
+                  </div>
+                </div>
+                <p class="text-xs md:text-sm text-gray-500 mt-4">
+                  Nilai minimal lulus: ${passingScore}%
+                </p>
+              </div>
+            </div>
+          ` : `
+            <div class="text-center p-4 md:p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
+              <i class="fa-solid fa-clipboard-list text-4xl md:text-5xl text-blue-500 mb-4"></i>
+              <h3 class="text-base md:text-xl font-bold mb-2">Anda Belum Mengerjakan Ujian</h3>
+              <p class="text-gray-600 text-sm md:text-base mb-4">Klik tombol di bawah untuk memulai ujian seleksi</p>
+              <button onclick="goToQuiz()" class="bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg text-sm md:text-base transition-all">
+                <i class="fa-solid fa-play mr-2"></i>
+                Mulai Ujian
+              </button>
+            </div>
+          `}
+
+          <div class="flex flex-col sm:flex-row gap-3">
+            <button onclick="logout()" class="flex-1 border border-gray-300 text-gray-700 hover:bg-gray-50 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              Keluar
+            </button>
+            ${!quizResult ? `
+              <button onclick="goToQuiz()" class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm transition-all">
+                <i class="fa-solid fa-play"></i>
+                Mulai Ujian
+              </button>
+            ` : ''}
+          </div>
+        `;
+      } catch (err) {
+        content.innerHTML = '<p class="text-red-500 text-center">Gagal memuat data</p>';
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      navigateTo('landing');
+    }
+
+    function goToQuiz() {
+      quizQuestions = [];
+      quizAnswers = {};
+      quizCurrentIndex = 0;
+      quizTimeLeft = parseInt(settings.quiz_duration) * 60;
+      quizStarted = false;
+      quizResult = null;
+      navigateTo('quiz');
+      loadQuizQuestions();
+    }
+
+    function goToDashboard() {
+      navigateTo('dashboard');
+      setTimeout(loadDashboardData, 100);
+    }
+
+    async function loadQuizQuestions() {
+      try {
+        const res = await fetch('/api/quiz/questions');
+        if (res.ok) {
+          quizQuestions = await res.json();
+          const countEl = document.getElementById('quiz-question-count');
+          if (countEl) {
+            countEl.textContent = quizQuestions.length;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load questions');
+      }
+    }
+
+    function startQuiz() {
+      if (quizQuestions.length === 0) {
+        alert('Belum ada soal tersedia');
+        return;
+      }
+      quizStarted = true;
+      quizTimeLeft = parseInt(settings.quiz_duration) * 60;
+      startTimer();
+      render();
+    }
+
+    function startTimer() {
+      if (quizTimer) clearInterval(quizTimer);
+      quizTimer = setInterval(() => {
+        quizTimeLeft--;
+        if (quizTimeLeft <= 0) {
+          clearInterval(quizTimer);
+          submitQuiz();
+        } else {
+          updateTimerDisplay();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const timerEl = document.querySelector('.font-mono');
+      if (timerEl) {
+        const minutes = Math.floor(quizTimeLeft / 60);
+        const seconds = quizTimeLeft % 60;
+        timerEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        const container = timerEl.parentElement;
+        if (quizTimeLeft < 300) {
+          container.classList.add('bg-red-500', 'animate-pulse');
+          container.classList.remove('bg-white/20');
+        }
+      }
+    }
+
+    function selectAnswer(questionId, answer) {
+      quizAnswers[questionId] = answer;
+      render();
+    }
+
+    function prevQuestion() {
+      if (quizCurrentIndex > 0) {
+        quizCurrentIndex--;
+        render();
+      }
+    }
+
+    function nextQuestion() {
+      if (quizCurrentIndex < quizQuestions.length - 1) {
+        quizCurrentIndex++;
+        render();
+      }
+    }
+
+    function goToQuestion(idx) {
+      quizCurrentIndex = idx;
+      render();
+    }
+
+    function exitQuiz() {
+      if (quizTimer) clearInterval(quizTimer);
+      navigateTo('dashboard');
+      setTimeout(loadDashboardData, 100);
+    }
+
+    async function submitQuiz() {
+      if (!currentUser) return;
+      if (quizTimer) clearInterval(quizTimer);
+      
+      const timeSpent = parseInt(settings.quiz_duration) * 60 - quizTimeLeft;
+      const answersArray = Object.entries(quizAnswers).map(([questionId, answer]) => ({
+        questionId,
+        answer,
+      }));
+      
+      try {
+        const res = await fetch('/api/quiz/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participantId: currentUser.id,
+            answers: answersArray,
+            timeSpent,
+          }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          quizResult = data.result;
+          render();
+        } else {
+          alert('Gagal menyimpan hasil ujian');
+        }
+      } catch (err) {
+        alert('Terjadi kesalahan');
+      }
+    }
+
+    // Admin functions
+    async function fetchAdminData() {
+      try {
+        const [participantsRes, questionsRes, songsRes, announcementsRes] = await Promise.all([
+          fetch('/api/admin/participants'),
+          fetch('/api/admin/questions'),
+          fetch('/api/admin/songs'),
+          fetch('/api/admin/announcements'),
+        ]);
+        
+        if (participantsRes.ok) adminParticipants = await participantsRes.json();
+        if (questionsRes.ok) adminQuestions = await questionsRes.json();
+        if (songsRes.ok) adminSongs = await songsRes.json();
+        if (announcementsRes.ok) adminAnnouncements = await announcementsRes.json();
+        
+        renderAdminContent();
+      } catch (err) {
+        console.error('Failed to fetch admin data');
+      }
+    }
+
+    function exportCSV() {
+      const headers = ['Nama Lengkap', 'Username', 'Email', 'Tempat Lahir', 'Tanggal Lahir', 'Jenis Kelamin', 'Agama', 'Tinggi (cm)', 'Berat (kg)', 'Sekolah', 'Kelas', 'No. Telepon', 'Alamat', 'Nilai Ujian', 'Jawaban Benar', 'Total Soal', 'Waktu (menit)', 'Status', 'Tanggal Daftar'];
+      const rows = adminParticipants.map(p => [
+        p.fullName, p.username, p.email, p.placeOfBirth, p.dateOfBirth,
+        p.gender, p.religion, p.height, p.weight, p.school, p.class,
+        p.phone, p.address, 
+        p.quizScore !== null ? `${p.quizScore}%` : 'Belum ujian',
+        p.quizCorrectAnswers !== null ? p.quizCorrectAnswers : '-',
+        p.quizTotalQuestions !== null ? p.quizTotalQuestions : '-',
+        p.quizTimeSpent !== null ? `${Math.floor(p.quizTimeSpent / 60)}:${(p.quizTimeSpent % 60).toString().padStart(2, '0')}` : '-',
+        p.status, 
+        new Date(p.createdAt).toLocaleDateString('id-ID'),
+      ]);
+      const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${cell || ''}"`).join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `peserta-paskibraka-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      alert('Data berhasil diunduh');
+    }
+
+    async function updateParticipantStatus(id, status) {
+      try {
+        const res = await fetch(`/api/admin/participants/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        if (res.ok) {
+          alert('Status berhasil diperbarui');
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal memperbarui status');
+      }
+    }
+
+    async function deleteParticipant(id, name) {
+      if (!confirm(`Yakin ingin menghapus akun "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+      try {
+        const res = await fetch(`/api/admin/participants/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('Akun peserta berhasil dihapus');
+          fetchAdminData();
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Gagal menghapus akun');
+        }
+      } catch (err) {
+        alert('Gagal menghapus akun');
+      }
+    }
+
+    async function addQuestion(e) {
+      e.preventDefault();
+      const question = document.getElementById('q-question').value;
+      const optionA = document.getElementById('q-optA').value;
+      const optionB = document.getElementById('q-optB').value;
+      const optionC = document.getElementById('q-optC').value;
+      const optionD = document.getElementById('q-optD').value;
+      const answer = document.getElementById('q-answer').value;
+      
+      try {
+        const res = await fetch('/api/admin/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, optionA, optionB, optionC, optionD, answer }),
+        });
+        if (res.ok) {
+          alert('Soal berhasil ditambahkan');
+          document.getElementById('q-question').value = '';
+          document.getElementById('q-optA').value = '';
+          document.getElementById('q-optB').value = '';
+          document.getElementById('q-optC').value = '';
+          document.getElementById('q-optD').value = '';
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal menambahkan soal');
+      }
+    }
+
+    async function deleteQuestion(id) {
+      if (!confirm('Yakin ingin menghapus soal ini?')) return;
+      try {
+        const res = await fetch(`/api/admin/questions/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('Soal berhasil dihapus');
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal menghapus soal');
+      }
+    }
+
+    async function addSong(e) {
+      e.preventDefault();
+      const title = document.getElementById('s-title').value;
+      const audioUrl = document.getElementById('s-url').value;
+      
+      try {
+        const res = await fetch('/api/admin/songs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, audioUrl }),
+        });
+        if (res.ok) {
+          alert('Lagu berhasil ditambahkan');
+          document.getElementById('s-title').value = '';
+          document.getElementById('s-url').value = '';
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal menambahkan lagu');
+      }
+    }
+
+    async function deleteSong(id) {
+      if (!confirm('Yakin ingin menghapus lagu ini?')) return;
+      try {
+        const res = await fetch(`/api/admin/songs/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('Lagu berhasil dihapus');
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal menghapus lagu');
+      }
+    }
+
+    async function addAnnouncement(e) {
+      e.preventDefault();
+      const title = document.getElementById('a-title').value;
+      const content = document.getElementById('a-content').value;
+      
+      try {
+        const res = await fetch('/api/admin/announcements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content, isActive: true }),
+        });
+        if (res.ok) {
+          alert('Pengumuman berhasil ditambahkan');
+          document.getElementById('a-title').value = '';
+          document.getElementById('a-content').value = '';
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal menambahkan pengumuman');
+      }
+    }
+
+    async function toggleAnnouncement(id, isActive) {
+      try {
+        await fetch(`/api/admin/announcements/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive }),
+        });
+        fetchAdminData();
+      } catch (err) {
+        alert('Gagal mengubah status');
+      }
+    }
+
+    async function deleteAnnouncement(id) {
+      if (!confirm('Yakin ingin menghapus pengumuman ini?')) return;
+      try {
+        const res = await fetch(`/api/admin/announcements/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('Pengumuman berhasil dihapus');
+          fetchAdminData();
+        }
+      } catch (err) {
+        alert('Gagal menghapus pengumuman');
+      }
+    }
+
+    async function saveSettings() {
+      const settingKeys = [
+        'site_title', 'site_subtitle', 'badge_merah', 'badge_putih',
+        'button_masuk', 'button_buat_akun', 'button_admin', 'footer_text',
+        'login_title', 'login_subtitle', 'register_title', 'register_subtitle',
+        'quiz_title', 'quiz_duration', 'quiz_passing_score'
+      ];
+      
+      for (const key of settingKeys) {
+        const input = document.getElementById(`setting-${key}`);
+        if (input) {
+          const value = input.value;
+          settings[key] = value;
+          try {
+            await fetch('/api/admin/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key, value }),
+            });
+          } catch (err) {
+            console.error(`Failed to save ${key}`);
+          }
+        }
+      }
+      
+      alert('Pengaturan berhasil disimpan');
+    }
+
+    function resetSettings() {
+      const defaults = {
+        site_title: 'Seleksi Paskibraka',
+        site_subtitle: 'Panji-Panji Garuda Indonesia',
+        badge_merah: 'Merah',
+        badge_putih: 'Putih',
+        button_masuk: 'Masuk',
+        button_buat_akun: 'Buat Akun',
+        button_admin: 'Admin Panel',
+        footer_text: '© 2024 Seleksi Paskibraka - Panji-Panji Garuda Indonesia',
+        login_title: 'Login Peserta',
+        login_subtitle: 'Masukkan kredensial akun Anda',
+        register_title: 'Pendaftaran Peserta',
+        register_subtitle: 'Lengkapi data diri Anda untuk mendaftar seleksi Paskibraka',
+        quiz_duration: '30',
+        quiz_passing_score: '70',
+        quiz_title: 'Ujian Seleksi Paskibraka',
+      };
+      
+      Object.keys(defaults).forEach(key => {
+        const input = document.getElementById(`setting-${key}`);
+        if (input) input.value = defaults[key];
+      });
+      
+      alert('Pengaturan direset ke default');
+    }
+
+    async function loadAdminCredentials() {
+      try {
+        const res = await fetch('/api/admin/credentials');
+        if (res.ok) {
+          adminCredentials = await res.json();
+          const usernameEl = document.getElementById('current-username');
+          if (usernameEl) {
+            usernameEl.textContent = adminCredentials.username;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load admin credentials');
+      }
+    }
+
+    async function updateCredentials(e) {
+      e.preventDefault();
+      
+      const currentPassword = document.getElementById('cred-current-password').value;
+      const newUsername = document.getElementById('cred-new-username').value;
+      const newPassword = document.getElementById('cred-new-password').value;
+      
+      const messageDiv = document.getElementById('credentials-message');
+      
+      // Validation
+      if (!currentPassword) {
+        messageDiv.className = 'mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600';
+        messageDiv.textContent = 'Password saat ini harus diisi';
+        messageDiv.classList.remove('hidden');
+        return;
+      }
+      
+      if (!newUsername && !newPassword) {
+        messageDiv.className = 'mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600';
+        messageDiv.textContent = 'Masukkan username baru atau password baru';
+        messageDiv.classList.remove('hidden');
+        return;
+      }
+      
+      if (newUsername && newUsername.length < 4) {
+        messageDiv.className = 'mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600';
+        messageDiv.textContent = 'Username baru minimal 4 karakter';
+        messageDiv.classList.remove('hidden');
+        return;
+      }
+      
+      if (newPassword && newPassword.length < 6) {
+        messageDiv.className = 'mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600';
+        messageDiv.textContent = 'Password baru minimal 6 karakter';
+        messageDiv.classList.remove('hidden');
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/admin/credentials', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentPassword,
+            newUsername: newUsername || null,
+            newPassword: newPassword || null,
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          messageDiv.className = 'mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-600';
+          messageDiv.innerHTML = '<i class="fa-solid fa-check-circle mr-2"></i>' + data.message + '. Anda akan logout otomatis...';
+          messageDiv.classList.remove('hidden');
+          
+          // Redirect to landing page after 2 seconds
+          setTimeout(() => {
+            navigateTo('landing');
+          }, 2000);
+        } else {
+          messageDiv.className = 'mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600';
+          messageDiv.innerHTML = '<i class="fa-solid fa-exclamation-circle mr-2"></i>' + data.error;
+          messageDiv.classList.remove('hidden');
+        }
+      } catch (err) {
+        messageDiv.className = 'mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600';
+        messageDiv.textContent = 'Terjadi kesalahan. Silakan coba lagi.';
+        messageDiv.classList.remove('hidden');
+      }
+    }
+
+    // Attach event listeners after render
+    function attachEventListeners() {
+      if (currentPage === 'dashboard') {
+        loadDashboardData();
+      }
+      if (currentPage === 'quiz') {
+        if (!quizStarted && quizQuestions.length === 0) {
+          loadQuizQuestions();
+        }
+      }
+      if (currentPage === 'admin') {
+        fetchAdminData();
+        if (adminActiveTab === 'credentials') {
+          loadAdminCredentials();
+        }
+      }
+    }
+
+    // Initialize
+    async function init() {
+      await fetchSettings();
+      await fetchAnnouncements();
+      render();
+    }
+
+    init();
+  </script>
+</body>
+</html>
